@@ -48,7 +48,7 @@ with mic.recorder(samplerate=SAMPLE_RATE) as recorder:
         audio_buffer.append(audio_mono)
         rms = np.sqrt(np.mean(audio_mono**2))
         print(rms)
-        debug_rms_values.append(rms)
+        # debug_rms_values.append(rms)
         is_silent = rms < SILENCE_THRESHOLD
 
         if is_silent:
