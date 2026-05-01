@@ -6,6 +6,7 @@ print(f"Preparing model {model_size}...")
 model = WhisperModel(model_size, device="cuda", compute_type="int8_float16")
 
 def test_sample():
+    # sample source: https://www.mitsue.co.jp/english/service/audio_and_video/audio_production/narrators_sample.html
     sample_files = os.listdir("sample_audio")
     print(f"Sample audio files: {sample_files}")
     for audio_file in sample_files:
