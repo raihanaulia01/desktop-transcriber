@@ -60,7 +60,7 @@ def transcribe_worker():
         for segment in segments:
             start = (timestamp + timedelta(seconds=segment.start)).strftime("%H:%M:%S.%f")[:-4]
             end   = (timestamp + timedelta(seconds=segment.end)).strftime("%H:%M:%S.%f")[:-4]
-            print_aligned_transcribe(f"  [{start} -> {end}]", segment.text.strip())
+            print_aligned_transcribe(f"[{start} -> {end}]", segment.text.strip())
 
 transcriber = threading.Thread(target=transcribe_worker, daemon=True)
 transcriber.start()
