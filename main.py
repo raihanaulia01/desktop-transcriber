@@ -1,5 +1,7 @@
 from faster_whisper import WhisperModel
 import soundcard as sc
+from rich.console import Console
+from rich.table import Table
 from soundcard import SoundcardRuntimeWarning
 import keyboard
 import argparse
@@ -13,6 +15,17 @@ import warnings
 # sc spits out a warning when the script first starts. This is probably a windows issue. 
 warnings.filterwarnings("ignore", category=SoundcardRuntimeWarning)
 
+console = Console(highlight=False)
+
+def print_aligned_transcribe(timestamp, text):
+    table = Table(show_header=False, box=None)
+    table.add_column(style="cyan", no_wrap=True, width=len(timestamp))
+    table.add_column(style="white", ratio=1)
+
+    table.add_row(timestamp, text)
+
+    console.print(table)
+
 script_dir = os.path.dirname(os.path.abspath(__file__))
 default_path = os.path.join(script_dir, f"rms_values_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv")
 
@@ -24,16 +37,16 @@ parser.add_argument("--max-buffer-duration", type=int, default=20, help="Max sec
 arguments = parser.parse_args()
 
 if arguments.export_rms_values:
-    print(f"rms values will be exported to {default_path}")
+    console.print(f"rms values will be exported to [magenta]{default_path}[/magenta]")
 
 default_speaker = sc.default_speaker()
-print(f"Using {default_speaker}")
+console.print(f"Using [magenta]{default_speaker}[/magenta]")
 mic = sc.get_microphone(default_speaker.id, include_loopback=True)
 
 model_size = "medium"
-print(f"Preparing model {model_size}...")
+console.print(f"Preparing model {model_size}...")
 model = WhisperModel(model_size, device="cuda", compute_type="int8_float16")
-print(f"Model {model_size} ready!\n")
+console.print(f"Model {model_size} ready!\n", style="green")
 
 audio_queue = queue.Queue()
 
@@ -47,7 +60,7 @@ def transcribe_worker():
         for segment in segments:
             start = (timestamp + timedelta(seconds=segment.start)).strftime("%H:%M:%S.%f")[:-4]
             end   = (timestamp + timedelta(seconds=segment.end)).strftime("%H:%M:%S.%f")[:-4]
-            print(f"  [{start} -> {end}] {segment.text}")
+            print_aligned_transcribe(f"  [{start} -> {end}]", segment.text.strip())
 
 transcriber = threading.Thread(target=transcribe_worker, daemon=True)
 transcriber.start()
@@ -63,7 +76,7 @@ silence_frames = 0
 audio_buffer = []
 debug_rms_values = [] if arguments.export_rms_values else None
 
-print("Recording... (press Q to stop)")
+console.print("Recording... (press Q to stop)")
 with mic.recorder(samplerate=SAMPLE_RATE) as recorder:
     while not keyboard.is_pressed("q"):
         audio = recorder.record(numframes=SAMPLE_RATE * CHUNK_SECONDS)
@@ -89,12 +102,12 @@ with mic.recorder(samplerate=SAMPLE_RATE) as recorder:
             silence_frames = 0
 
 
-print("Recording stopped. Waiting for transcriber thread...")
+console.print("Recording stopped. Waiting for transcriber thread...")
 audio_queue.put(None)
 transcriber.join()
 
 if debug_rms_values:
-    print(f"Exporting rms values to {default_path}")
+    console.print(f"Exporting rms values to [magenta]{default_path}[/magenta]")
     start_time = debug_rms_values[0][0]
     
     with open(default_path, "a") as f:
@@ -103,5 +116,5 @@ if debug_rms_values:
             relative_time = (value[0] - start_time).total_seconds() * 1000
             absolute_time = value[0].strftime("%H:%M:%S.%f")[:-3]
             f.write(f"{relative_time:.0f},{absolute_time},{value[1]}\n")
-print("Done.")
+console.print("Done.")
 os._exit(0)
