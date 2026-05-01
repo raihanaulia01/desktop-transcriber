@@ -30,12 +30,13 @@ def transcribe_worker():
 threading.Thread(target=transcribe_worker, daemon=True).start()
 
 SAMPLE_RATE = 16000
-SILENCE_THRESHOLD = 0.01
-SILENCE_DURATION = 1.2
+SILENCE_THRESHOLD = 0.014
+SILENCE_DURATION = 1
 CHUNK_SECONDS = 0.1
 
 silence_frames = 0
 audio_buffer = []
+# debug_rms_values = []
 MAX_BUFFER_SECONDS = 15
 SILENCE_CHUNKS_NEEDED = int(SILENCE_DURATION / CHUNK_SECONDS)
 
@@ -46,8 +47,10 @@ with mic.recorder(samplerate=SAMPLE_RATE) as recorder:
         audio_mono = audio[:, 0]
         audio_buffer.append(audio_mono)
         rms = np.sqrt(np.mean(audio_mono**2))
-        # print(rms)
+        print(rms)
+        debug_rms_values.append(rms)
         is_silent = rms < SILENCE_THRESHOLD
+
         if is_silent:
             silence_frames += 1
         else:
@@ -59,7 +62,11 @@ with mic.recorder(samplerate=SAMPLE_RATE) as recorder:
             audio_queue.put(full_audio)
             audio_buffer = []
             silence_frames = 0
-        
+
 
 audio_queue.put(None)  # signal transcribe worker to stop
 print("Recording stopped.")
+
+# with open("rmsvalues.txt", "a") as f:
+#     for value in debug_rms_values:
+#         f.write(f"{value}\n")
