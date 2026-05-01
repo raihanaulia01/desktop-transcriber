@@ -2,6 +2,8 @@ from faster_whisper import WhisperModel
 import soundcard as sc
 from soundcard import SoundcardRuntimeWarning
 import keyboard
+import argparse
+import os
 import threading
 import queue
 import numpy as np
@@ -10,6 +12,15 @@ import warnings
 
 # sc spits out a warning when the script first starts. This is probably a windows issue. 
 warnings.filterwarnings("ignore", category=SoundcardRuntimeWarning)
+
+script_dir = os.path.dirname(os.path.abspath(__file__))
+default_path = os.path.join(script_dir, f"rms_values_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv")
+
+parser = argparse.ArgumentParser(description="Live transcriber using faster_whisper by SYSTRAN")
+parser.add_argument("--export-rms-values", action="store_true", help="Exports the rms values to a file in the script's directory.")
+arguments = parser.parse_args()
+if arguments.export_rms_values:
+    print(f"rms values will be exported to {default_path}")
 
 default_speaker = sc.default_speaker()
 print(f"Using {default_speaker}")
@@ -28,7 +39,7 @@ def transcribe_worker():
         if data is None:
             break
         audio_mono, timestamp = data
-        segments, info = model.transcribe(audio_mono, beam_size=5, task="translate", vad_filter=True)
+        segments, _ = model.transcribe(audio_mono, beam_size=5, task="translate", vad_filter=True)
         for segment in segments:
             start = (timestamp + timedelta(seconds=segment.start)).strftime("%H:%M:%S.%f")[:-4]
             end   = (timestamp + timedelta(seconds=segment.end)).strftime("%H:%M:%S.%f")[:-4]
@@ -44,7 +55,7 @@ CHUNK_SECONDS = 0.1
 
 silence_frames = 0
 audio_buffer = []
-# debug_rms_values = []
+debug_rms_values = [] if arguments.export_rms_values else None
 MAX_BUFFER_SECONDS = 20
 SILENCE_CHUNKS_NEEDED = int(SILENCE_DURATION / CHUNK_SECONDS)
 
@@ -53,11 +64,13 @@ with mic.recorder(samplerate=SAMPLE_RATE) as recorder:
     while not keyboard.is_pressed("q"):
         audio = recorder.record(numframes=SAMPLE_RATE * CHUNK_SECONDS)
         audio_mono = audio[:, 0]
-        audio_buffer.append((audio_mono, datetime.now()))
+        audio_time = datetime.now()
+        audio_buffer.append((audio_mono, audio_time))
         rms = np.sqrt(np.mean(audio_mono**2))
-        # print(rms)
-        # debug_rms_values.append(rms)
         is_silent = rms < SILENCE_THRESHOLD
+        
+        if not debug_rms_values is None:
+            debug_rms_values.append((audio_time, rms))
 
         if is_silent:
             silence_frames += 1
@@ -75,8 +88,16 @@ with mic.recorder(samplerate=SAMPLE_RATE) as recorder:
 print("Recording stopped. Waiting for transcriber thread...")
 audio_queue.put(None)
 transcriber.join()
-print("Done.")
 
-# with open("rmsvalues.txt", "a") as f:
-#     for value in debug_rms_values:
-#         f.write(f"{value}\n")
+if debug_rms_values:
+    print(f"Exporting rms values to {default_path}")
+    start_time = debug_rms_values[0][0]
+    
+    with open(default_path, "a") as f:
+        f.write("relative_time,absolute_time,rms_value")
+        for value in debug_rms_values:
+            relative_time = (value[0] - start_time).total_seconds() * 1000
+            absolute_time = value[0].strftime("%H:%M:%S.%f")[:-3]
+            f.write(f"{relative_time:.0f},{absolute_time},{value[1]}\n")
+
+print("Done.")

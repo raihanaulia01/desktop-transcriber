@@ -1,6 +1,6 @@
 # project specific ignore
 sample_audio
-rmsvalues.txt
+rms_values*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
