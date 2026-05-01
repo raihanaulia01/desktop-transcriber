@@ -103,5 +103,5 @@ if debug_rms_values:
             relative_time = (value[0] - start_time).total_seconds() * 1000
             absolute_time = value[0].strftime("%H:%M:%S.%f")[:-3]
             f.write(f"{relative_time:.0f},{absolute_time},{value[1]}\n")
-
 print("Done.")
+os._exit(0)
