@@ -98,7 +98,7 @@ if debug_rms_values:
     start_time = debug_rms_values[0][0]
     
     with open(default_path, "a") as f:
-        f.write("relative_time,absolute_time,rms_value")
+        f.write("relative_time,absolute_time,rms_value\n")
         for value in debug_rms_values:
             relative_time = (value[0] - start_time).total_seconds() * 1000
             absolute_time = value[0].strftime("%H:%M:%S.%f")[:-3]
