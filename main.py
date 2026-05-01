@@ -30,9 +30,9 @@ def transcribe_worker():
         audio_mono, timestamp = data
         segments, info = model.transcribe(audio_mono, beam_size=5, task="translate", vad_filter=True)
         for segment in segments:
-            start = (timestamp + timedelta(seconds=segment.start)).strftime("%H:%M:%S.%f")[:-2]
-            end   = (timestamp + timedelta(seconds=segment.end)).strftime("%H:%M:%S.%f")[:-2]
-            print(f"    [{start} -> {end}] {segment.text}")
+            start = (timestamp + timedelta(seconds=segment.start)).strftime("%H:%M:%S.%f")[:-4]
+            end   = (timestamp + timedelta(seconds=segment.end)).strftime("%H:%M:%S.%f")[:-4]
+            print(f"  [{start} -> {end}] {segment.text}")
 
 transcriber = threading.Thread(target=transcribe_worker, daemon=True)
 transcriber.start()
