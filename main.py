@@ -4,6 +4,7 @@ import keyboard
 import threading
 import queue
 import numpy as np
+from datetime import datetime, timedelta
 # import os
 
 default_speaker = sc.default_speaker()
@@ -19,25 +20,26 @@ audio_queue = queue.Queue()
 
 def transcribe_worker():
     while True:
-        print("Transcribing...")
-        audio_mono = audio_queue.get()
+        audio_mono, timestamp = audio_queue.get()
         if audio_mono is None:
             break
         segments, info = model.transcribe(audio_mono, beam_size=5, task="translate", vad_filter=True)
         for segment in segments:
-            print("    [%.2fs -> %.2fs] %s" % (segment.start, segment.end, segment.text))
+            start = (timestamp + timedelta(seconds=segment.start)).strftime("%H:%M:%S.%f")[:-2]
+            end   = (timestamp + timedelta(seconds=segment.end)).strftime("%H:%M:%S.%f")[:-2]
+            print(f"    [{start} -> {end}] {segment.text}")
 
 threading.Thread(target=transcribe_worker, daemon=True).start()
 
 SAMPLE_RATE = 16000
-SILENCE_THRESHOLD = 0.014
-SILENCE_DURATION = 1
+SILENCE_THRESHOLD = 0.01
+SILENCE_DURATION = 2
 CHUNK_SECONDS = 0.1
 
 silence_frames = 0
 audio_buffer = []
 # debug_rms_values = []
-MAX_BUFFER_SECONDS = 15
+MAX_BUFFER_SECONDS = 20
 SILENCE_CHUNKS_NEEDED = int(SILENCE_DURATION / CHUNK_SECONDS)
 
 print("\nRecording... (press Q to stop)")
@@ -45,9 +47,9 @@ with mic.recorder(samplerate=SAMPLE_RATE) as recorder:
     while not keyboard.is_pressed("q"):
         audio = recorder.record(numframes=SAMPLE_RATE * CHUNK_SECONDS)
         audio_mono = audio[:, 0]
-        audio_buffer.append(audio_mono)
+        audio_buffer.append((audio_mono, datetime.now()))
         rms = np.sqrt(np.mean(audio_mono**2))
-        print(rms)
+        # print(rms)
         # debug_rms_values.append(rms)
         is_silent = rms < SILENCE_THRESHOLD
 
@@ -58,8 +60,8 @@ with mic.recorder(samplerate=SAMPLE_RATE) as recorder:
 
         if (silence_frames >= SILENCE_CHUNKS_NEEDED and len(audio_buffer) > 0) or (
                 len(audio_buffer) > int(MAX_BUFFER_SECONDS/CHUNK_SECONDS)):
-            full_audio = np.concatenate(audio_buffer)
-            audio_queue.put(full_audio)
+            full_audio = np.concatenate([audios[0] for audios in audio_buffer])
+            audio_queue.put((full_audio, audio_buffer[0][1]))
             audio_buffer = []
             silence_frames = 0
 
