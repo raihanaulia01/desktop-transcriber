@@ -18,7 +18,11 @@ default_path = os.path.join(script_dir, f"rms_values_{datetime.now().strftime("%
 
 parser = argparse.ArgumentParser(description="Live transcriber using faster_whisper by SYSTRAN")
 parser.add_argument("--export-rms-values", action="store_true", help="Exports the rms values to a file in the script's directory.")
+parser.add_argument("--silence-duration", type=float, default=2.0, help="Seconds of silence before processing audio (default: 2.0)")
+parser.add_argument("--silence-threshold", type=float, default=0.01, help="RMS threshold to consider a chunk silent (default: 0.01)")
+parser.add_argument("--max-buffer-duration", type=int, default=20, help="Max seconds of audio to buffer before forcing processing (default: 20)")
 arguments = parser.parse_args()
+
 if arguments.export_rms_values:
     print(f"rms values will be exported to {default_path}")
 
@@ -49,15 +53,15 @@ transcriber = threading.Thread(target=transcribe_worker, daemon=True)
 transcriber.start()
 
 SAMPLE_RATE = 16000
-SILENCE_THRESHOLD = 0.01
-SILENCE_DURATION = 2
+SILENCE_THRESHOLD = arguments.silence_threshold
+SILENCE_DURATION = arguments.silence_duration
 CHUNK_SECONDS = 0.1
+MAX_BUFFER_SECONDS = arguments.max_buffer_duration
+SILENCE_CHUNKS_NEEDED = int(SILENCE_DURATION / CHUNK_SECONDS)
 
 silence_frames = 0
 audio_buffer = []
 debug_rms_values = [] if arguments.export_rms_values else None
-MAX_BUFFER_SECONDS = 20
-SILENCE_CHUNKS_NEEDED = int(SILENCE_DURATION / CHUNK_SECONDS)
 
 print("Recording... (press Q to stop)")
 with mic.recorder(samplerate=SAMPLE_RATE) as recorder:
