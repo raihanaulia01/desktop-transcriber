@@ -1,11 +1,15 @@
 from faster_whisper import WhisperModel
 import soundcard as sc
+from soundcard import SoundcardRuntimeWarning
 import keyboard
 import threading
 import queue
 import numpy as np
 from datetime import datetime, timedelta
-# import os
+import warnings
+
+# sc spits out a warning when the script first starts. This is probably a windows issue. 
+warnings.filterwarnings("ignore", category=SoundcardRuntimeWarning)
 
 default_speaker = sc.default_speaker()
 print(f"Using {default_speaker}")
@@ -20,16 +24,18 @@ audio_queue = queue.Queue()
 
 def transcribe_worker():
     while True:
-        audio_mono, timestamp = audio_queue.get()
-        if audio_mono is None:
+        data = audio_queue.get()
+        if data is None:
             break
+        audio_mono, timestamp = data
         segments, info = model.transcribe(audio_mono, beam_size=5, task="translate", vad_filter=True)
         for segment in segments:
             start = (timestamp + timedelta(seconds=segment.start)).strftime("%H:%M:%S.%f")[:-2]
             end   = (timestamp + timedelta(seconds=segment.end)).strftime("%H:%M:%S.%f")[:-2]
             print(f"    [{start} -> {end}] {segment.text}")
 
-threading.Thread(target=transcribe_worker, daemon=True).start()
+transcriber = threading.Thread(target=transcribe_worker, daemon=True)
+transcriber.start()
 
 SAMPLE_RATE = 16000
 SILENCE_THRESHOLD = 0.01
@@ -42,7 +48,7 @@ audio_buffer = []
 MAX_BUFFER_SECONDS = 20
 SILENCE_CHUNKS_NEEDED = int(SILENCE_DURATION / CHUNK_SECONDS)
 
-print("\nRecording... (press Q to stop)")
+print("Recording... (press Q to stop)")
 with mic.recorder(samplerate=SAMPLE_RATE) as recorder:
     while not keyboard.is_pressed("q"):
         audio = recorder.record(numframes=SAMPLE_RATE * CHUNK_SECONDS)
@@ -66,8 +72,10 @@ with mic.recorder(samplerate=SAMPLE_RATE) as recorder:
             silence_frames = 0
 
 
-audio_queue.put(None)  # signal transcribe worker to stop
-print("Recording stopped.")
+print("Recording stopped. Waiting for transcriber thread...")
+audio_queue.put(None)
+transcriber.join()
+print("Done.")
 
 # with open("rmsvalues.txt", "a") as f:
 #     for value in debug_rms_values:
