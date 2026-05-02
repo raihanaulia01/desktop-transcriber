@@ -78,6 +78,17 @@ def transcribe_worker():
             end   = (timestamp + timedelta(seconds=segment.end)).strftime("%H:%M:%S.%f")[:-4]
             print_aligned_transcribe(f"[{start} -> {end}]", segment.text.strip())
 
+raw_audio_queue = queue.Queue()
+def recorder_thread():
+    with mic.recorder(samplerate=SAMPLE_RATE) as recorder:
+        while not stop_event.is_set():
+            audio = recorder.record(numframes=SAMPLE_RATE * CHUNK_SECONDS)
+            raw_audio_queue.put(audio)
+
+stop_event = threading.Event()
+recorder = threading.Thread(target=recorder_thread, daemon=True)
+recorder.start()
+
 transcriber = threading.Thread(target=transcribe_worker, daemon=True)
 transcriber.start()
 
@@ -86,32 +97,32 @@ audio_buffer = []
 debug_rms_values = [] if arguments.export_rms_values else None
 
 console.print("Recording... (press Q to stop)")
-with mic.recorder(samplerate=SAMPLE_RATE) as recorder:
-    while not keyboard.is_pressed("q"):
-        audio = recorder.record(numframes=SAMPLE_RATE * CHUNK_SECONDS)
-        audio_mono = audio[:, 0]
-        audio_time = datetime.now()
-        audio_buffer.append((audio_mono, audio_time))
-        rms = np.sqrt(np.mean(audio_mono**2))
-        is_silent = rms < SILENCE_THRESHOLD
-        
-        if not debug_rms_values is None:
-            debug_rms_values.append((audio_time, rms))
+while not keyboard.is_pressed("q"):
+    audio = raw_audio_queue.get()
+    audio_mono = audio[:, 0]
+    audio_time = datetime.now()
+    audio_buffer.append((audio_mono, audio_time))
+    rms = np.sqrt(np.mean(audio_mono**2))
+    is_silent = rms < SILENCE_THRESHOLD
+    
+    if not debug_rms_values is None:
+        debug_rms_values.append((audio_time, rms))
 
-        if is_silent:
-            silence_frames += 1
-        else:
-            silence_frames = 0
+    if is_silent:
+        silence_frames += 1
+    else:
+        silence_frames = 0
 
-        if (silence_frames >= SILENCE_CHUNKS_NEEDED and len(audio_buffer) > 0) or (
-                len(audio_buffer) > int(MAX_BUFFER_SECONDS/CHUNK_SECONDS)):
-            full_audio = np.concatenate([audios[0] for audios in audio_buffer])
-            audio_queue.put((full_audio, audio_buffer[0][1]))
-            audio_buffer = []
-            silence_frames = 0
+    if (silence_frames >= SILENCE_CHUNKS_NEEDED and len(audio_buffer) > 0) or (
+            len(audio_buffer) > int(MAX_BUFFER_SECONDS/CHUNK_SECONDS)):
+        full_audio = np.concatenate([audios[0] for audios in audio_buffer])
+        audio_queue.put((full_audio, audio_buffer[0][1]))
+        audio_buffer = []
+        silence_frames = 0
 
-
-console.print("Recording stopped. Waiting for transcriber thread...")
+console.print("Recording stopped. Waiting for transcriber and recorder threads...")
+stop_event.set()
+recorder.join()
 audio_queue.put(None)
 transcriber.join()
 
@@ -125,5 +136,6 @@ if debug_rms_values:
             relative_time = (value[0] - start_time).total_seconds() * 1000
             absolute_time = value[0].strftime("%H:%M:%S.%f")[:-3]
             f.write(f"{relative_time:.0f},{absolute_time},{value[1]}\n")
+            
 console.print("Done.")
 os._exit(0)
