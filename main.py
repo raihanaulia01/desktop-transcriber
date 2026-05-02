@@ -18,30 +18,28 @@ warnings.filterwarnings("ignore", category=SoundcardRuntimeWarning)
 
 console = Console(highlight=False)
 
-def print_aligned_transcribe(timestamp, text):
-    table = Table(show_header=False, box=None)
-    table.add_column(style="cyan", no_wrap=True, width=len(timestamp))
-    table.add_column(style="white", ratio=1)
-
-    table.add_row(timestamp, text)
-
-    console.print(table)
+file_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
 script_dir = os.path.dirname(os.path.abspath(__file__))
-default_path = os.path.join(script_dir, f"rms_values_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv")
+rms_values_path = os.path.join(script_dir, f"rms_values_{file_timestamp}.csv")
+transcribed_text_path = os.path.join(script_dir, f"transcribed_{file_timestamp}.txt")
 
 parser = argparse.ArgumentParser(description="Live transcriber using faster_whisper by SYSTRAN")
 parser.add_argument("--export-rms-values", action="store_true", help="Exports the rms values to a file in the script's directory.")
-parser.add_argument("--silence-duration", type=float, default=2.0, help="Seconds of silence before processing audio (default: 2.0)")
-parser.add_argument("--silence-threshold", type=float, default=0.01, help="RMS threshold to consider a chunk silent (default: 0.01)")
-parser.add_argument("--max-buffer-duration", type=int, default=20, help="Max seconds of audio to buffer before forcing processing (default: 20)")
+parser.add_argument("--export-transcribed", action="store_true", help="Exports the transcribed text to a file in the scrip's directory.")
+parser.add_argument("--silence-duration", type=float, default=2.0, help="Seconds of silence before processing audio (default: 2.0).")
+parser.add_argument("--silence-threshold", type=float, default=0.01, help="RMS threshold to consider a chunk silent (default: 0.01).")
+parser.add_argument("--max-buffer-duration", type=int, default=20, help="Max seconds of audio to buffer before forcing processing (default: 20).")
 parser.add_argument("--model", type=str, default="medium", choices=VALID_MODELS, help="Set the faster_whisper model, defaults to medium. Please check the vram requirements for each model before using.")
-parser.add_argument("--device", type=str, default="cuda", choices=VALID_DEVICES, help="Set the device to use for computation, defaults to cuda")
+parser.add_argument("--device", type=str, default="cuda", choices=VALID_DEVICES, help="Set the device to use for computation, defaults to cuda.")
 parser.add_argument("--language", type=str, default=None, choices=VALID_LANGUAGE_CODES, help="Language code (e.g. 'en', 'fr', 'ja'). If omitted, language will be auto-detected.")
 arguments = parser.parse_args()
 
 if arguments.export_rms_values:
-    console.print(f"rms values will be exported to [magenta]{default_path}[/magenta]")
+    console.print(f"rms values will be exported to [magenta]{rms_values_path}[/magenta]")
+
+if arguments.export_transcribed:
+    console.print(f"Transcribed text will be exported to [magenta]{transcribed_text_path}[/magenta]")
 
 if arguments.model == "turbo" or arguments.model ==  "large-v3-turbo":
     console.print(f"Warning: the turbo model doesn't support translation.")
@@ -63,8 +61,22 @@ model_directory = os.path.join(script_dir, "whisper_model/")
 model = WhisperModel(model_size, device=arguments.device, compute_type="int8_float16", download_root=model_directory)
 console.print(f"Model {model_size} ready!\n", style="green")
 
-audio_queue = queue.Queue()
+transcribed = [] if arguments.export_transcribed else None
+def print_aligned_transcribe(timestamp, segment_start, segment_end, text):
+    start = (timestamp + timedelta(seconds=segment_start)).strftime("%H:%M:%S.%f")
+    end   = (timestamp + timedelta(seconds=segment_end)).strftime("%H:%M:%S.%f")
+    timestamp_text = f"[{start[:-4]} -> {end[:-4]}]"
+    table = Table(show_header=False, box=None)
+    table.add_column(style="cyan", no_wrap=True, width=len(timestamp_text))
+    table.add_column(style="white", ratio=1)
 
+    table.add_row(timestamp_text, text)
+
+    console.print(table)
+    if not transcribed is None:
+        transcribed.append(f"{start[:-3]} -> {end[:-3]} : {text}")
+
+audio_queue = queue.Queue()
 def transcribe_worker():
     while True:
         data = audio_queue.get()
@@ -78,9 +90,7 @@ def transcribe_worker():
             language=arguments.language
         )
         for segment in segments:
-            start = (timestamp + timedelta(seconds=segment.start)).strftime("%H:%M:%S.%f")[:-4]
-            end   = (timestamp + timedelta(seconds=segment.end)).strftime("%H:%M:%S.%f")[:-4]
-            print_aligned_transcribe(f"[{start} -> {end}]", segment.text.strip())
+            print_aligned_transcribe(timestamp, segment.start, segment.end, segment.text.strip())
 
 raw_audio_queue = queue.Queue()
 def recorder_thread():
@@ -131,15 +141,22 @@ audio_queue.put(None)
 transcriber.join()
 
 if debug_rms_values:
-    console.print(f"Exporting rms values to [magenta]{default_path}[/magenta]")
+    console.print(f"Exporting rms values to [magenta]{rms_values_path}[/magenta]")
     start_time = debug_rms_values[0][0]
     
-    with open(default_path, "a") as f:
+    with open(rms_values_path, "a") as f:
         f.write("relative_time,absolute_time,rms_value\n")
         for value in debug_rms_values:
             relative_time = (value[0] - start_time).total_seconds() * 1000
             absolute_time = value[0].strftime("%H:%M:%S.%f")[:-3]
             f.write(f"{relative_time:.0f},{absolute_time},{value[1]}\n")
+
+if transcribed:
+    console.print(f"Exporting transcribed text to [magenta]{transcribed_text_path}[/magenta]")
+
+    with open(transcribed_text_path, "a") as f:
+        for line in transcribed:
+            f.write(f"{line}\n")
 
 console.print("Done.")
 os._exit(0)
