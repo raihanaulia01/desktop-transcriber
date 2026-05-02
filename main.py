@@ -43,6 +43,9 @@ arguments = parser.parse_args()
 if arguments.export_rms_values:
     console.print(f"rms values will be exported to [magenta]{default_path}[/magenta]")
 
+if arguments.model == "turbo" or arguments.model ==  "large-v3-turbo":
+    console.print(f"Warning: the turbo model doesn't support translation.")
+
 SAMPLE_RATE = 16000
 SILENCE_THRESHOLD = arguments.silence_threshold
 SILENCE_DURATION = arguments.silence_duration

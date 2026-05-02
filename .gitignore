@@ -1,6 +1,7 @@
 # project specific ignore
 sample_audio
 rms_values*
+whisper_model/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
