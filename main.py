@@ -11,6 +11,7 @@ import queue
 import numpy as np
 from datetime import datetime, timedelta
 import warnings
+from constants import VALID_LANGUAGE_CODES, VALID_MODELS
 
 # sc spits out a warning when the script first starts. This is probably a windows issue. 
 warnings.filterwarnings("ignore", category=SoundcardRuntimeWarning)
@@ -29,16 +30,13 @@ def print_aligned_transcribe(timestamp, text):
 script_dir = os.path.dirname(os.path.abspath(__file__))
 default_path = os.path.join(script_dir, f"rms_values_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv")
 
-valid_models = ["tiny.en","tiny","base.en","base","small.en","small","medium.en","medium","large-v1","large-v2","large-v3","large","distil-large-v2","distil-medium.en","distil-small.en","distil-large-v3","distil-large-v3.5","large-v3-turbo","turbo"]
-valid_language_codes = ["af","am","ar","as","az","ba","be","bg","bn","bo","br","bs","ca","cs","cy","da","de","el","en","es","et","eu","fa","fi","fo","fr","gl","gu","ha","haw","he","hi","hr","ht","hu","hy","id","is","it","ja","jw","ka","kk","km","kn","ko","la","lb","ln","lo","lt","lv","mg","mi","mk","ml","mn","mr","ms","mt","my","ne","nl","nn","no","oc","pa","pl","ps","pt","ro","ru","sa","sd","si","sk","sl","sn","so","sq","sr","su","sv","sw","ta","te","tg","th","tk","tl","tr","tt","uk","ur","uz","vi","yi","yo","zh","yue",]
-
 parser = argparse.ArgumentParser(description="Live transcriber using faster_whisper by SYSTRAN")
 parser.add_argument("--export-rms-values", action="store_true", help="Exports the rms values to a file in the script's directory.")
 parser.add_argument("--silence-duration", type=float, default=2.0, help="Seconds of silence before processing audio (default: 2.0)")
 parser.add_argument("--silence-threshold", type=float, default=0.01, help="RMS threshold to consider a chunk silent (default: 0.01)")
 parser.add_argument("--max-buffer-duration", type=int, default=20, help="Max seconds of audio to buffer before forcing processing (default: 20)")
-parser.add_argument("--model", type=str, default="medium", choices=valid_models, help="Set the faster_whisper model, defaults to medium. Please check the vram requirements for each model before using.")
-parser.add_argument("--language", type=str, default=None, choices=valid_language_codes, help="Language code (e.g. 'en', 'fr', 'ja'). If omitted, language will be auto-detected.")
+parser.add_argument("--model", type=str, default="medium", choices=VALID_MODELS, help="Set the faster_whisper model, defaults to medium. Please check the vram requirements for each model before using.")
+parser.add_argument("--language", type=str, default=None, choices=VALID_LANGUAGE_CODES, help="Language code (e.g. 'en', 'fr', 'ja'). If omitted, language will be auto-detected.")
 arguments = parser.parse_args()
 
 if arguments.export_rms_values:
