@@ -43,6 +43,13 @@ arguments = parser.parse_args()
 if arguments.export_rms_values:
     console.print(f"rms values will be exported to [magenta]{default_path}[/magenta]")
 
+SAMPLE_RATE = 16000
+SILENCE_THRESHOLD = arguments.silence_threshold
+SILENCE_DURATION = arguments.silence_duration
+CHUNK_SECONDS = 0.1
+MAX_BUFFER_SECONDS = arguments.max_buffer_duration
+SILENCE_CHUNKS_NEEDED = int(SILENCE_DURATION / CHUNK_SECONDS)
+
 default_speaker = sc.default_speaker()
 console.print(f"Using [magenta]{default_speaker}[/magenta]")
 mic = sc.get_microphone(default_speaker.id, include_loopback=True)
@@ -73,13 +80,6 @@ def transcribe_worker():
 
 transcriber = threading.Thread(target=transcribe_worker, daemon=True)
 transcriber.start()
-
-SAMPLE_RATE = 16000
-SILENCE_THRESHOLD = arguments.silence_threshold
-SILENCE_DURATION = arguments.silence_duration
-CHUNK_SECONDS = 0.1
-MAX_BUFFER_SECONDS = arguments.max_buffer_duration
-SILENCE_CHUNKS_NEEDED = int(SILENCE_DURATION / CHUNK_SECONDS)
 
 silence_frames = 0
 audio_buffer = []
