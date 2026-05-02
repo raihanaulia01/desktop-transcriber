@@ -2,6 +2,7 @@ from faster_whisper import WhisperModel
 import soundcard as sc
 from rich.console import Console
 from rich.table import Table
+from rich.live import Live
 from soundcard import SoundcardRuntimeWarning
 import keyboard
 import argparse
@@ -111,28 +112,30 @@ audio_buffer = []
 debug_rms_values = [] if arguments.export_rms_values else None
 
 console.print("Recording... (press Q to stop)")
-while not keyboard.is_pressed("q"):
-    audio = raw_audio_queue.get()
-    audio_mono = audio[:, 0]
-    audio_time = datetime.now()
-    audio_buffer.append((audio_mono, audio_time))
-    rms = np.sqrt(np.mean(audio_mono**2))
-    is_silent = rms < SILENCE_THRESHOLD
-    
-    if not debug_rms_values is None:
-        debug_rms_values.append((audio_time, rms))
+with Live(console=console, refresh_per_second=10) as live:
+    while not keyboard.is_pressed("q"):
+        audio = raw_audio_queue.get()
+        audio_mono = audio[:, 0]
+        audio_time = datetime.now()
+        audio_buffer.append((audio_mono, audio_time))
+        rms = np.sqrt(np.mean(audio_mono**2))
+        is_silent = rms < SILENCE_THRESHOLD
+        
+        if not debug_rms_values is None:
+            debug_rms_values.append((audio_time, rms))
 
-    if is_silent:
-        silence_frames += 1
-    else:
-        silence_frames = 0
+        if is_silent:
+            silence_frames += 1
+        else:
+            silence_frames = 0
 
-    if (silence_frames >= SILENCE_CHUNKS_NEEDED and len(audio_buffer) > 0) or (
-            len(audio_buffer) > int(MAX_BUFFER_SECONDS/CHUNK_SECONDS)):
-        full_audio = np.concatenate([audios[0] for audios in audio_buffer])
-        audio_queue.put((full_audio, audio_buffer[0][1]))
-        audio_buffer = []
-        silence_frames = 0
+        if (silence_frames >= SILENCE_CHUNKS_NEEDED and len(audio_buffer) > 0) or (
+                len(audio_buffer) > int(MAX_BUFFER_SECONDS/CHUNK_SECONDS)):
+            full_audio = np.concatenate([audios[0] for audios in audio_buffer])
+            audio_queue.put((full_audio, audio_buffer[0][1]))
+            audio_buffer = []
+            silence_frames = 0
+        live.update(f"{audio_time.strftime("%H:%M:%S.%f")[:-4]} | RMS = {rms:.3f} | Buffer = {len(audio_buffer):03d} | In queue: {audio_queue.qsize()}")
 
 console.print("Recording stopped. Waiting for transcriber and recorder threads...")
 stop_event.set()
