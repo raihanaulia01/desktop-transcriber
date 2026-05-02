@@ -4,7 +4,7 @@ from rich.console import Console
 from rich.table import Table
 from rich.live import Live
 from soundcard import SoundcardRuntimeWarning
-import keyboard
+import msvcrt
 import argparse
 import os
 import threading
@@ -113,7 +113,13 @@ debug_rms_values = [] if arguments.export_rms_values else None
 
 console.print("Recording... (press Q to stop)")
 with Live(console=console, refresh_per_second=10) as live:
-    while not keyboard.is_pressed("q"):
+    while True:
+        # check 'q' keypress to exit
+        if msvcrt.kbhit():
+            key = msvcrt.getwch()
+            if key.lower() == "q":
+                break
+
         audio = raw_audio_queue.get()
         audio_mono = audio[:, 0]
         audio_time = datetime.now()
