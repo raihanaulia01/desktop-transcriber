@@ -59,7 +59,8 @@ mic = sc.get_microphone(default_speaker.id, include_loopback=True)
 
 model_size = arguments.model
 console.print(f"Preparing model {model_size}...")
-model = WhisperModel(model_size, device=arguments.device, compute_type="int8_float16")
+model_directory = os.path.join(script_dir, "whisper_model/")
+model = WhisperModel(model_size, device=arguments.device, compute_type="int8_float16", download_root=model_directory)
 console.print(f"Model {model_size} ready!\n", style="green")
 
 audio_queue = queue.Queue()
