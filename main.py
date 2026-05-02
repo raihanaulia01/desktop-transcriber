@@ -34,6 +34,7 @@ parser.add_argument("--export-rms-values", action="store_true", help="Exports th
 parser.add_argument("--silence-duration", type=float, default=2.0, help="Seconds of silence before processing audio (default: 2.0)")
 parser.add_argument("--silence-threshold", type=float, default=0.01, help="RMS threshold to consider a chunk silent (default: 0.01)")
 parser.add_argument("--max-buffer-duration", type=int, default=20, help="Max seconds of audio to buffer before forcing processing (default: 20)")
+parser.add_argument("--model", type=str, default="medium", help="Set the faster_whisper model, defaults to medium. Please check the vram requirements for each model before using.")
 parser.add_argument("--language", type=str, default=None, help="Language code (e.g. 'en', 'fr', 'ja'). If omitted, language will be auto-detected.")
 arguments = parser.parse_args()
 
@@ -44,7 +45,7 @@ default_speaker = sc.default_speaker()
 console.print(f"Using [magenta]{default_speaker}[/magenta]")
 mic = sc.get_microphone(default_speaker.id, include_loopback=True)
 
-model_size = "medium"
+model_size = arguments.model
 console.print(f"Preparing model {model_size}...")
 model = WhisperModel(model_size, device="cuda", compute_type="int8_float16")
 console.print(f"Model {model_size} ready!\n", style="green")
