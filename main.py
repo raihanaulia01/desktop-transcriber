@@ -11,7 +11,7 @@ import queue
 import numpy as np
 from datetime import datetime, timedelta
 import warnings
-from constants import VALID_LANGUAGE_CODES, VALID_MODELS
+from constants import VALID_LANGUAGE_CODES, VALID_MODELS, VALID_DEVICES
 
 # sc spits out a warning when the script first starts. This is probably a windows issue. 
 warnings.filterwarnings("ignore", category=SoundcardRuntimeWarning)
@@ -36,6 +36,7 @@ parser.add_argument("--silence-duration", type=float, default=2.0, help="Seconds
 parser.add_argument("--silence-threshold", type=float, default=0.01, help="RMS threshold to consider a chunk silent (default: 0.01)")
 parser.add_argument("--max-buffer-duration", type=int, default=20, help="Max seconds of audio to buffer before forcing processing (default: 20)")
 parser.add_argument("--model", type=str, default="medium", choices=VALID_MODELS, help="Set the faster_whisper model, defaults to medium. Please check the vram requirements for each model before using.")
+parser.add_argument("--device", type=str, default="cuda", choices=VALID_DEVICES, help="Set the device to use for computation, defaults to cuda")
 parser.add_argument("--language", type=str, default=None, choices=VALID_LANGUAGE_CODES, help="Language code (e.g. 'en', 'fr', 'ja'). If omitted, language will be auto-detected.")
 arguments = parser.parse_args()
 
@@ -55,7 +56,7 @@ mic = sc.get_microphone(default_speaker.id, include_loopback=True)
 
 model_size = arguments.model
 console.print(f"Preparing model {model_size}...")
-model = WhisperModel(model_size, device="cuda", compute_type="int8_float16")
+model = WhisperModel(model_size, device=arguments.device, compute_type="int8_float16")
 console.print(f"Model {model_size} ready!\n", style="green")
 
 audio_queue = queue.Queue()
