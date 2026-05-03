@@ -14,6 +14,10 @@ from datetime import datetime, timedelta
 import warnings
 from constants import VALID_LANGUAGE_CODES, VALID_MODELS, VALID_DEVICES
 
+# TODO soundcard library is volume-dependent. This makes the rms silence detection unreliable
+#   ? change to logarithmic? rolling average? normalize volume (can't do this for every 0.1s chunks)?
+# TODO save rms debug values periodically
+
 # sc spits out a warning when the script first starts. This is probably a windows issue. 
 warnings.filterwarnings("ignore", category=SoundcardRuntimeWarning)
 
