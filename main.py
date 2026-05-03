@@ -80,9 +80,8 @@ def print_aligned_transcribe(timestamp, segment_start, segment_end, text):
 
     console.print(table)
     if transcribed_file:
-        with open(transcribed_text_path, "a") as f:
-            transcribed_file.write(f"{start[:-3]} -> {end[:-3]} : {text}\n")
-            transcribed_file.flush()
+        transcribed_file.write(f"{start[:-3]} -> {end[:-3]} : {text}\n")
+        transcribed_file.flush()
 
 audio_queue = queue.Queue()
 def transcribe_worker():
