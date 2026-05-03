@@ -39,8 +39,10 @@ arguments = parser.parse_args()
 if arguments.export_rms_values:
     console.print(f"rms values will be exported to [magenta]{rms_values_path}[/magenta]")
 
+transcribed_file = None
 if arguments.export_transcribed:
     console.print(f"Transcribed text will be exported to [magenta]{transcribed_text_path}[/magenta]")
+    transcribed_file = open(transcribed_text_path, "a")
 
 if arguments.model == "turbo" or arguments.model ==  "large-v3-turbo":
     console.print(f"Warning: the turbo model doesn't support translation.")
@@ -62,7 +64,6 @@ model_directory = os.path.join(script_dir, "whisper_model/")
 model = WhisperModel(model_size, device=arguments.device, compute_type="int8_float16", download_root=model_directory)
 console.print(f"Model {model_size} ready!\n", style="green")
 
-transcribed = [] if arguments.export_transcribed else None
 def print_aligned_transcribe(timestamp, segment_start, segment_end, text):
     start = (timestamp + timedelta(seconds=segment_start)).strftime("%H:%M:%S.%f")
     end   = (timestamp + timedelta(seconds=segment_end)).strftime("%H:%M:%S.%f")
@@ -74,8 +75,10 @@ def print_aligned_transcribe(timestamp, segment_start, segment_end, text):
     table.add_row(timestamp_text, text)
 
     console.print(table)
-    if not transcribed is None:
-        transcribed.append(f"{start[:-3]} -> {end[:-3]} : {text}")
+    if transcribed_file:
+        with open(transcribed_text_path, "a") as f:
+            transcribed_file.write(f"{start[:-3]} -> {end[:-3]} : {text}\n")
+            transcribed_file.flush()
 
 audio_queue = queue.Queue()
 def transcribe_worker():
@@ -159,13 +162,6 @@ if debug_rms_values:
             relative_time = (value[0] - start_time).total_seconds() * 1000
             absolute_time = value[0].strftime("%H:%M:%S.%f")[:-3]
             f.write(f"{relative_time:.0f},{absolute_time},{value[1]}\n")
-
-if transcribed:
-    console.print(f"Exporting transcribed text to [magenta]{transcribed_text_path}[/magenta]")
-
-    with open(transcribed_text_path, "a") as f:
-        for line in transcribed:
-            f.write(f"{line}\n")
-
+            
 console.print("Done.")
 os._exit(0)
