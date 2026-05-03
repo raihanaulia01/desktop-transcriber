@@ -46,7 +46,7 @@ if arguments.export_rms_values:
 transcribed_file = None
 if arguments.export_transcribed:
     console.print(f"Transcribed text will be exported to [magenta]{transcribed_text_path}[/magenta]")
-    transcribed_file = open(transcribed_text_path, "a")
+    transcribed_file = open(transcribed_text_path, "a", encoding="utf-8")
 
 if arguments.model == "turbo" or arguments.model ==  "large-v3-turbo":
     console.print(f"Warning: the turbo model doesn't support translation.")
