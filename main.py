@@ -15,7 +15,7 @@ import warnings
 from constants import VALID_LANGUAGE_CODES, VALID_MODELS, VALID_DEVICES
 
 # TODO soundcard library is volume-dependent. This makes the rms silence detection unreliable
-#   ? change to logarithmic? rolling average? normalize volume (can't do this for every 0.1s chunks)?
+#   ? change to logarithmic? rolling average? normalize volume (can't do this for every 0.1s chunks)? use silero-vad?
 # TODO save rms debug values periodically
 
 # sc spits out a warning when the script first starts. This is probably a windows issue. 
@@ -166,6 +166,6 @@ if debug_rms_values:
             relative_time = (value[0] - start_time).total_seconds() * 1000
             absolute_time = value[0].strftime("%H:%M:%S.%f")[:-3]
             f.write(f"{relative_time:.0f},{absolute_time},{value[1]}\n")
-            
+
 console.print("Done.")
 os._exit(0)
