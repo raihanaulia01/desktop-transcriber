@@ -15,7 +15,9 @@ import warnings
 from constants import VALID_LANGUAGE_CODES, VALID_MODELS, VALID_DEVICES
 
 # TODO soundcard library is volume-dependent. This makes the rms silence detection unreliable
-#   ? change to logarithmic? rolling average? normalize volume (can't do this for every 0.1s chunks)? use silero-vad?
+#   ? change to logarithmic? rolling average? normalize volume (can't do this for every 0.1s chunks)? use silero-vad? use peak threshold instead of rms?
+# TODO when the audio is completely silent for a long time, the VAD still passes the empty audio to the transcriber thread, filling up the queue with silent audio
+# TODO add keybind to force process (transcribe)? with space
 # TODO save rms debug values periodically
 
 # sc spits out a warning when the script first starts. This is probably a windows issue. 
@@ -117,10 +119,12 @@ silence_frames = 0
 audio_buffer = []
 debug_rms_values = [] if arguments.export_rms_values else None
 
-console.print("Recording... (press Q to stop)")
+console.print("Recording...")
+console.print("Press Q to stop, press SPACE to force transcribe")
 with Live(console=console, refresh_per_second=10) as live:
     while True:
         # check 'q' keypress to exit
+        key = None
         if msvcrt.kbhit():
             key = msvcrt.getwch()
             if key.lower() == "q":
@@ -141,8 +145,11 @@ with Live(console=console, refresh_per_second=10) as live:
         else:
             silence_frames = 0
 
-        if (silence_frames >= SILENCE_CHUNKS_NEEDED and len(audio_buffer) > 0) or (
-                len(audio_buffer) > int(MAX_BUFFER_SECONDS/CHUNK_SECONDS)):
+        force_transcribe = key == ' '
+        silence_detected = silence_frames >= SILENCE_CHUNKS_NEEDED and len(audio_buffer) > 0
+        reached_max_buffer = len(audio_buffer) > int(MAX_BUFFER_SECONDS/CHUNK_SECONDS)
+
+        if silence_detected or reached_max_buffer or force_transcribe:
             full_audio = np.concatenate([audios[0] for audios in audio_buffer])
             audio_queue.put((full_audio, audio_buffer[0][1]))
             audio_buffer = []
