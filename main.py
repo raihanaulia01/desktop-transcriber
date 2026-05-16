@@ -101,12 +101,24 @@ def transcribe_worker():
         for segment in segments:
             print_aligned_transcribe(timestamp, segment.start, segment.end, segment.text.strip())
 
+# TODO add a retry mechanism to automatically find and reconnect the audio device
 raw_audio_queue = queue.Queue()
 def recorder_thread():
-    with mic.recorder(samplerate=SAMPLE_RATE) as recorder:
-        while not stop_event.is_set():
-            audio = recorder.record(numframes=SAMPLE_RATE * CHUNK_SECONDS)
-            raw_audio_queue.put(audio)
+    try:
+        with mic.recorder(samplerate=SAMPLE_RATE) as recorder:
+            while not stop_event.is_set():
+                try:
+                    audio = recorder.record(numframes=SAMPLE_RATE * CHUNK_SECONDS)
+                    raw_audio_queue.put(audio)
+                except RuntimeError as e:
+                    if "0x88890004" in str(e) or "0x10000000" in str(e):
+                        console.print("\n[bold red]Audio device disconnected or changed! Stopping recorder thread.[/bold red]")
+                        stop_event.set()
+                    else:
+                        raise e
+    except Exception as e:
+        console.print(f"\n[bold red]Fatal error in recorder thread[/bold red] {e}", highlight=True)
+        stop_event.set()
 
 stop_event = threading.Event()
 recorder = threading.Thread(target=recorder_thread, daemon=True)
