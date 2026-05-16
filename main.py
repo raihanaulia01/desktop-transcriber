@@ -87,7 +87,7 @@ def print_aligned_transcribe(timestamp, segment_start, segment_end, text):
 
 audio_queue = queue.Queue()
 def transcribe_worker():
-    while True:
+    while not stop_event.is_set():
         data = audio_queue.get()
         if data is None:
             break
@@ -105,6 +105,8 @@ def transcribe_worker():
 raw_audio_queue = queue.Queue()
 def recorder_thread():
     try:
+        # ? maybe put the get microphone here, then add another loop below this as the actual recording loop
+        # ? and move the stop event to the top, and move the mic recorder under the stop event loop
         with mic.recorder(samplerate=SAMPLE_RATE) as recorder:
             while not stop_event.is_set():
                 try:
@@ -114,10 +116,11 @@ def recorder_thread():
                     if "0x88890004" in str(e) or "0x10000000" in str(e):
                         console.print("\n[bold red]Audio device disconnected or changed! Stopping recorder thread.[/bold red]")
                         stop_event.set()
+                        break
                     else:
                         raise e
     except Exception as e:
-        console.print(f"\n[bold red]Fatal error in recorder thread[/bold red] {e}", highlight=True)
+        console.print(f"[bold red]Fatal error in recorder thread:[/bold red] {e}", highlight=True)
         stop_event.set()
 
 stop_event = threading.Event()
@@ -134,15 +137,17 @@ debug_rms_values = [] if arguments.export_rms_values else None
 console.print("Recording...")
 console.print("Press Q to stop, press SPACE to force transcribe")
 with Live(console=console, refresh_per_second=10) as live:
-    while True:
+    while not stop_event.is_set():
         # check 'q' keypress to exit
         key = None
         if msvcrt.kbhit():
             key = msvcrt.getwch()
             if key.lower() == "q":
                 break
-
-        audio = raw_audio_queue.get()
+        try:
+            audio = raw_audio_queue.get(timeout=1)
+        except queue.Empty:
+            continue
         audio_mono = audio[:, 0]
         audio_time = datetime.now()
         audio_buffer.append((audio_mono, audio_time))
