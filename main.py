@@ -42,6 +42,7 @@ parser.add_argument("--export-rms-values", action="store_true", help="Exports th
 parser.add_argument("--export-transcribed", action="store_true", help="Exports the transcribed text to a file in the scrip's directory.")
 parser.add_argument("--silence-duration", type=float, default=0.5, help="Seconds of silence before processing audio (default: 0.5).")
 parser.add_argument("--vad-threshold", type=restricted_float, default=0.5, help="Silero VAD speech probability sensitivity threshold between 0.0 and 1.0 (default: 0.5).")
+parser.add_argument("--speech-pad", type=int, default=50, help="Padding around speech in ms (default: 50).")
 parser.add_argument("--max-buffer-duration", type=int, default=20, help="Max seconds of audio to buffer before forcing processing (default: 20).")
 parser.add_argument("--model", type=str, default="medium", choices=VALID_MODELS, help="Set the faster_whisper model, defaults to medium. Please check the vram requirements for each model before using.")
 parser.add_argument("--device", type=str, default="cuda", choices=VALID_DEVICES, help="Set the device to use for computation, defaults to cuda.")
@@ -86,7 +87,8 @@ vad_iterator = VADIterator(
     vad_model, 
     threshold=arguments.vad_threshold, 
     sampling_rate=SAMPLE_RATE, 
-    min_silence_duration_ms=int(SILENCE_DURATION * 1000)
+    min_silence_duration_ms=int(SILENCE_DURATION * 1000),
+    speech_pad_ms=arguments.speech_pad
 )
 console.print("Silero VAD engine live!\n", style="green")
 
