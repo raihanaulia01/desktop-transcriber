@@ -3,6 +3,7 @@ sample_audio
 rms_values*
 transcribed_*
 whisper_model/
+silero_model/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

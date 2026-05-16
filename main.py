@@ -1,4 +1,5 @@
 from faster_whisper import WhisperModel
+import torch
 import soundcard as sc
 from rich.console import Console
 from rich.table import Table
@@ -14,12 +15,6 @@ from datetime import datetime, timedelta
 import warnings
 from constants import VALID_LANGUAGE_CODES, VALID_MODELS, VALID_DEVICES
 
-# TODO soundcard library is volume-dependent. This makes the rms silence detection unreliable
-#   ? change to logarithmic? rolling average? normalize volume (can't do this for every 0.1s chunks)? use silero-vad? use peak threshold instead of rms?
-# TODO when the audio is completely silent for a long time, the VAD still passes the empty audio to the transcriber thread, filling up the queue with silent audio
-# TODO add keybind to force process (transcribe)? with space
-# TODO save rms debug values periodically
-
 # sc spits out a warning when the script first starts. This is probably a windows issue. 
 warnings.filterwarnings("ignore", category=SoundcardRuntimeWarning)
 
@@ -34,16 +29,13 @@ transcribed_text_path = os.path.join(script_dir, f"transcribed_{file_timestamp}.
 parser = argparse.ArgumentParser(description="Live transcriber using faster_whisper by SYSTRAN")
 parser.add_argument("--export-rms-values", action="store_true", help="Exports the rms values to a file in the script's directory.")
 parser.add_argument("--export-transcribed", action="store_true", help="Exports the transcribed text to a file in the scrip's directory.")
-parser.add_argument("--silence-duration", type=float, default=2.0, help="Seconds of silence before processing audio (default: 2.0).")
-parser.add_argument("--silence-threshold", type=float, default=0.01, help="RMS threshold to consider a chunk silent (default: 0.01).")
+parser.add_argument("--silence-duration", type=float, default=0.5, help="Seconds of silence before processing audio (default: 0.5).")
+parser.add_argument("--vad-threshold", type=float, default=0.5, help="Silero VAD speech probability sensitivity threshold between 0.0 and 1.0 (default: 0.5).")
 parser.add_argument("--max-buffer-duration", type=int, default=20, help="Max seconds of audio to buffer before forcing processing (default: 20).")
 parser.add_argument("--model", type=str, default="medium", choices=VALID_MODELS, help="Set the faster_whisper model, defaults to medium. Please check the vram requirements for each model before using.")
 parser.add_argument("--device", type=str, default="cuda", choices=VALID_DEVICES, help="Set the device to use for computation, defaults to cuda.")
 parser.add_argument("--language", type=str, default=None, choices=VALID_LANGUAGE_CODES, help="Language code (e.g. 'en', 'fr', 'ja'). If omitted, language will be auto-detected.")
 arguments = parser.parse_args()
-
-if arguments.export_rms_values:
-    console.print(f"rms values will be exported to [magenta]{rms_values_path}[/magenta]")
 
 transcribed_file = None
 if arguments.export_transcribed:
@@ -54,21 +46,38 @@ if arguments.model == "turbo" or arguments.model ==  "large-v3-turbo":
     console.print(f"Warning: the turbo model doesn't support translation.")
 
 SAMPLE_RATE = 16000
-SILENCE_THRESHOLD = arguments.silence_threshold
 SILENCE_DURATION = arguments.silence_duration
-CHUNK_SECONDS = 0.1
+CHUNK_SECONDS = 0.032
 MAX_BUFFER_SECONDS = arguments.max_buffer_duration
-SILENCE_CHUNKS_NEEDED = int(SILENCE_DURATION / CHUNK_SECONDS)
 
+# set speaker
 default_speaker = sc.default_speaker()
 console.print(f"Using [magenta]{default_speaker}[/magenta]")
 mic = sc.get_microphone(default_speaker.id, include_loopback=True)
 
+# initialize faster whisper model
 model_size = arguments.model
 console.print(f"Preparing model {model_size}...")
 model_directory = os.path.join(script_dir, "whisper_model/")
+os.makedirs(model_directory, exist_ok=True)
 model = WhisperModel(model_size, device=arguments.device, compute_type="int8_float16", download_root=model_directory)
 console.print(f"Model {model_size} ready!\n", style="green")
+
+# initialize silero vad
+console.print("Preparing Silero VAD...")
+vad_model_directory =  os.path.join(script_dir, "silero_model/")
+os.makedirs(vad_model_directory, exist_ok=True)
+torch.hub.set_dir(vad_model_directory)
+
+vad_model, utils = torch.hub.load(repo_or_dir='snakers4/silero-vad', model='silero_vad', trust_repo=True) # type: ignore
+VADIterator = utils[3]
+vad_iterator = VADIterator(
+    vad_model, 
+    threshold=arguments.vad_threshold, 
+    sampling_rate=SAMPLE_RATE, 
+    min_silence_duration_ms=int(SILENCE_DURATION * 1000)
+)
+console.print("Silero VAD engine live!\n", style="green")
 
 def print_aligned_transcribe(timestamp, segment_start, segment_end, text):
     start = (timestamp + timedelta(seconds=segment_start)).strftime("%H:%M:%S.%f")
@@ -132,7 +141,7 @@ transcriber.start()
 
 silence_frames = 0
 audio_buffer = []
-debug_rms_values = [] if arguments.export_rms_values else None
+is_speaking = False
 
 console.print("Recording...")
 console.print("Press Q to stop, press SPACE to force transcribe")
@@ -144,51 +153,50 @@ with Live(console=console, refresh_per_second=10) as live:
             key = msvcrt.getwch()
             if key.lower() == "q":
                 break
+
         try:
             audio = raw_audio_queue.get(timeout=1)
         except queue.Empty:
             continue
         audio_mono = audio[:, 0]
         audio_time = datetime.now()
-        audio_buffer.append((audio_mono, audio_time))
-        rms = np.sqrt(np.mean(audio_mono**2))
-        is_silent = rms < SILENCE_THRESHOLD
-        
-        if not debug_rms_values is None:
-            debug_rms_values.append((audio_time, rms))
+        audio_tensor = torch.from_numpy(audio_mono)
+        vad_output = vad_iterator(audio_tensor)
 
-        if is_silent:
-            silence_frames += 1
+        if vad_output:
+            if "start" in vad_output:
+                is_speaking = True
+                audio_buffer = [(audio_mono, audio_time)]
+            
+            if "end" in vad_output:
+                if is_speaking and audio_buffer:
+                    full_audio = np.concatenate([audios[0] for audios in audio_buffer])
+                    audio_queue.put((full_audio, audio_buffer[0][1]))
+                is_speaking = False
+                audio_buffer = []
+                vad_iterator.reset_states()
         else:
-            silence_frames = 0
+            if is_speaking:
+                audio_buffer.append((audio_mono, audio_time))
 
-        force_transcribe = key == ' '
-        silence_detected = silence_frames >= SILENCE_CHUNKS_NEEDED and len(audio_buffer) > 0
         reached_max_buffer = len(audio_buffer) > int(MAX_BUFFER_SECONDS/CHUNK_SECONDS)
+        force_transcribe = key == ' '
 
-        if silence_detected or reached_max_buffer or force_transcribe:
-            full_audio = np.concatenate([audios[0] for audios in audio_buffer])
-            audio_queue.put((full_audio, audio_buffer[0][1]))
+        if reached_max_buffer or force_transcribe:
+            if is_speaking and audio_buffer:
+                full_audio = np.concatenate([audios[0] for audios in audio_buffer])
+                audio_queue.put((full_audio, audio_buffer[0][1]))
+            is_speaking = False
             audio_buffer = []
-            silence_frames = 0
-        live.update(f"{audio_time.strftime("%H:%M:%S.%f")[:-4]} | RMS = {rms:.3f} | Buffer = {len(audio_buffer):03d} | In queue: {audio_queue.qsize()}")
+            vad_iterator.reset_states()
+            
+        live.update(f"{audio_time.strftime("%H:%M:%S.%f")[:-4]} | Speaking = {is_speaking} | Buffer Seconds = {round(len(audio_buffer)*CHUNK_SECONDS, 1)} | In queue: {audio_queue.qsize()}")
 
 console.print("Recording stopped. Waiting for transcriber and recorder threads...")
 stop_event.set()
 recorder.join()
 audio_queue.put(None)
 transcriber.join()
-
-if debug_rms_values:
-    console.print(f"Exporting rms values to [magenta]{rms_values_path}[/magenta]")
-    start_time = debug_rms_values[0][0]
-    
-    with open(rms_values_path, "a") as f:
-        f.write("relative_time,absolute_time,rms_value\n")
-        for value in debug_rms_values:
-            relative_time = (value[0] - start_time).total_seconds() * 1000
-            absolute_time = value[0].strftime("%H:%M:%S.%f")[:-3]
-            f.write(f"{relative_time:.0f},{absolute_time},{value[1]}\n")
 
 console.print("Done.")
 os._exit(0)
