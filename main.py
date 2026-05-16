@@ -13,7 +13,8 @@ import queue
 import numpy as np
 from datetime import datetime, timedelta
 import warnings
-from constants import VALID_LANGUAGE_CODES, VALID_MODELS, VALID_DEVICES
+import string
+from constants import VALID_LANGUAGE_CODES, VALID_MODELS, VALID_DEVICES, HALLUCINATION_DICT
 
 # sc spits out a warning when the script first starts. This is probably a windows issue. 
 warnings.filterwarnings("ignore", category=SoundcardRuntimeWarning)
@@ -92,6 +93,15 @@ vad_iterator = VADIterator(
 )
 console.print("Silero VAD engine live!\n", style="green")
 
+def detect_hallucination(text, duration):
+    clean_text = text.lower().strip().translate(str.maketrans('', '', string.punctuation))
+    # hallucination_dict[text] value is the duration, if the duration is none, then the hallucination's duration is not specific
+    if clean_text in HALLUCINATION_DICT.keys():
+        check_duration = duration == HALLUCINATION_DICT[clean_text] if HALLUCINATION_DICT[clean_text] else True
+        if check_duration:
+            return True
+    return False
+
 def print_aligned_transcribe(timestamp, segment_start, segment_end, text):
     start = (timestamp + timedelta(seconds=segment_start)).strftime("%H:%M:%S.%f")
     end   = (timestamp + timedelta(seconds=segment_end)).strftime("%H:%M:%S.%f")
@@ -120,6 +130,7 @@ def transcribe_worker():
             language=arguments.language
         )
         for segment in segments:
+            if detect_hallucination(segment.text, segment.end-segment.start): continue
             print_aligned_transcribe(timestamp, segment.start, segment.end, segment.text.strip())
 
 # TODO add a retry mechanism to automatically find and reconnect the audio device
