@@ -104,7 +104,6 @@ def transcribe_worker():
         segments, _ = model.transcribe(
             audio_mono, beam_size=5, 
             task="translate", 
-            vad_filter=True, 
             language=arguments.language
         )
         for segment in segments:
@@ -189,7 +188,7 @@ with Live(console=console, refresh_per_second=10) as live:
             is_speaking = False
             audio_buffer = []
             vad_iterator.reset_states()
-            
+
         live.update(f"{audio_time.strftime("%H:%M:%S.%f")[:-4]} | Speaking = {is_speaking} | Buffer Seconds = {round(len(audio_buffer)*CHUNK_SECONDS, 1)} | In queue: {audio_queue.qsize()}")
 
 console.print("Recording stopped. Waiting for transcriber and recorder threads...")
