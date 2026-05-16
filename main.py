@@ -188,8 +188,8 @@ with Live(console=console, refresh_per_second=10) as live:
             is_speaking = False
             audio_buffer = []
             vad_iterator.reset_states()
-
-        live.update(f"{audio_time.strftime("%H:%M:%S.%f")[:-4]} | Speaking = {is_speaking} | Buffer Seconds = {round(len(audio_buffer)*CHUNK_SECONDS, 1)} | In queue: {audio_queue.qsize()}")
+        status_text = "Speaking " if is_speaking else "Listening"
+        live.update(f"{audio_time.strftime("%H:%M:%S.%f")[:-4]} | {status_text} | Buffer Seconds = {round(len(audio_buffer)*CHUNK_SECONDS, 1)} | In queue: {audio_queue.qsize()}")
 
 console.print("Recording stopped. Waiting for transcriber and recorder threads...")
 stop_event.set()
