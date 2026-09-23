@@ -6,6 +6,7 @@ whisper_model/
 silero_model/
 test*
 cuBLAS.and.cuDNN_CUDA12_win_v3
+.github/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
