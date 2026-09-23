@@ -8,6 +8,8 @@ HALLUCINATION_DICT = {
   "thank you for watching":2, 
   "thanks for watching":2, 
   "see you next time":2,
+  "please subscribe to my channel":2,
+  "thank you for your viewing please subscribe to the channel from the icon on the right":10,
   "translated by releska":None,
   "please subscribe to my channel and give it a high rating":None
 }

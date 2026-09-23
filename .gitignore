@@ -4,6 +4,8 @@ rms_values*
 transcribed_*
 whisper_model/
 silero_model/
+test*
+cuBLAS.and.cuDNN_CUDA12_win_v3
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

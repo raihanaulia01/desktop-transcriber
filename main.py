@@ -162,7 +162,6 @@ recorder.start()
 transcriber = threading.Thread(target=transcribe_worker, daemon=True)
 transcriber.start()
 
-silence_frames = 0
 audio_buffer = []
 is_speaking = False
 
@@ -212,7 +211,7 @@ with Live(console=console, refresh_per_second=10) as live:
             is_speaking = False
             audio_buffer = []
             vad_iterator.reset_states()
-        status_text = "Speaking " if is_speaking else "Listening"
+        status_text = "[green]Speaking[/green] " if is_speaking else "Listening"
         live.update(f"{audio_time.strftime("%H:%M:%S.%f")[:-4]} | {status_text} | Buffer Seconds = {round(len(audio_buffer)*CHUNK_SECONDS, 1)} | In queue: {audio_queue.qsize()}")
 
 console.print("Recording stopped. Waiting for transcriber and recorder threads...")
