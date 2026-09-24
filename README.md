@@ -36,7 +36,7 @@ Install the Python dependencies:
 pip install faster-whisper torch soundcard rich numpy
 ```
 
-For CUDA support, install the PyTorch build that matches your CUDA installation. See the official PyTorch instructions at <https://pytorch.org/get-started/locally/>.
+For CUDA support, install the PyTorch build that matches your CUDA installation. See the official PyTorch instructions at <https://pytorch.org/get-started/locally/> or refer to the [faster-whisper](https://github.com/SYSTRAN/faster-whisper) github page.
 
 Whisper and Silero VAD model files are downloaded or loaded into these project directories on first use:
 
